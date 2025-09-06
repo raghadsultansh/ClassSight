@@ -23,9 +23,9 @@ export async function POST(request: Request) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Dashboard API error:', error)
+    console.error('KPIs API error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard data' },
+      { error: 'Failed to fetch KPI data' },
       { status: 500 }
     )
   }
