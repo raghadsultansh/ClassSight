@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: 'ClassSight - AI-Powered Classroom Management',
   description: 'Advanced classroom analytics using AI to monitor student attention and engagement',
   keywords: ['education', 'AI', 'classroom management', 'analytics', 'student engagement'],
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

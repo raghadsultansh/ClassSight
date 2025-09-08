@@ -9,39 +9,46 @@ from core.deps import get_current_user, assert_bootcamp_scope
 from db.pool import get_pool
 from models.schemas import AssistantQuery, AssistantReply
 
+# Import RAG systems
+try:
+    from utils.sql_rag import answer_question
+    from utils.vector_rag import rag_answer
+    SQL_RAG_AVAILABLE = True
+    VECTOR_RAG_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: RAG imports failed: {e}")
+    SQL_RAG_AVAILABLE = False
+    VECTOR_RAG_AVAILABLE = False
+
 router = APIRouter()
 
 
 @router.post("/query", response_model=AssistantReply)
-async def query_assistant(
-    query: AssistantQuery,
-    user: Dict[str, Any] = Depends(get_current_user)
-):
+async def query_assistant(query: AssistantQuery):
     """Chat with the AI assistant"""
     pool = get_pool()
-    
-    # Check bootcamp access if specified
-    if query.bootcamp_id:
-        await assert_bootcamp_scope(user, query.bootcamp_id, pool)
     
     try:
         # Ensure we have a session ID
         session_id = query.session_id or uuid4()
         
+        # Create a default user for session tracking (no auth required)
+        default_user_id = UUID("00000000-0000-0000-0000-000000000000")  # Anonymous user UUID
+        
         # Upsert chat session
-        await _ensure_chat_session(pool, session_id, user["user_id"], query.bootcamp_id)
+        await _ensure_chat_session(pool, session_id, default_user_id, query.bootcamp_id)
         
         # Store user message
         user_message_id = await _store_message(
-            pool, session_id, user["user_id"], "user", query.query
+            pool, session_id, default_user_id, "user", query.query
         )
         
-        # Call RAG system (placeholder - replace with your actual RAG implementation)
-        rag_response = await _call_rag_system(query, user)
+        # Call RAG system (no user needed for RAG)
+        rag_response = await _call_rag_system(query, None)
         
         # Store assistant response
         assistant_message_id = await _store_message(
-            pool, session_id, user["user_id"], "assistant", 
+            pool, session_id, default_user_id, "assistant", 
             rag_response["answer"], rag_response.get("sources", [])
         )
         
@@ -110,49 +117,74 @@ async def _store_message(
     return message_id
 
 
-async def _call_rag_system(query: AssistantQuery, user: Dict[str, Any]) -> Dict[str, Any]:
-    """Process query with RAG system"""
+async def _call_rag_system(query: AssistantQuery, user: Dict[str, Any] = None) -> Dict[str, Any]:
+    """Process query with RAG system - V2 (SQL) is default, fallback to V1 (Vector) if V2 fails"""
     
-    # TODO: Replace with actual RAG implementation
-    # This is just a placeholder response
-    #     user_context=user,
-    #     date_range=(query.start, query.end)
-    # )
+    # Determine which system to try first
+    if query.rag_system == 'vector':
+        # User explicitly requested Vector RAG (V1)
+        try:
+            if not VECTOR_RAG_AVAILABLE:
+                return {
+                    "answer": "I apologize, but the Vector RAG system (V1) is not available at the moment. Please try using V2 instead.",
+                    "sources": [],
+                    "tokens_used": None
+                }
+            
+            result = rag_answer(query.query)
+            
+            return {
+                "answer": result["answer"],
+                "sources": result.get("sources", []),
+                "tokens_used": None
+            }
+        except Exception as e:
+            print(f"Vector RAG Error (user requested): {e}")
+            return {
+                "answer": f"I apologize, but the Vector RAG system (V1) encountered an error. Please try using V2 instead. Error: {str(e)}",
+                "sources": [],
+                "tokens_used": None
+            }
     
-    # For now, returning a mock response
-    mock_sources = []
-    
-    if query.bootcamp_id:
-        mock_sources.append({
-            "type": "bootcamp_data",
-            "bootcamp_id": query.bootcamp_id,
-            "title": f"Bootcamp {query.bootcamp_id} Analytics",
-            "relevance_score": 0.85
-        })
-    
-    if "attendance" in query.query.lower():
-        mock_sources.append({
-            "type": "class_samples",
-            "title": "Attendance Metrics",
-            "date_range": "Last 30 days",
-            "relevance_score": 0.92
-        })
-    
-    if "grade" in query.query.lower():
-        mock_sources.append({
-            "type": "grades",
-            "title": "Grade Analytics",
-            "relevance_score": 0.88
-        })
-    
-    # Mock response - replace with your actual RAG response
-    return {
-        "answer": f"Based on the available data for your query '{query.query}', here are the insights I can provide. " +
-                 f"This is a placeholder response that should be replaced with your actual RAG implementation. " +
-                 f"The query was processed for user {user['user_id']} with role {user['role']}.",
-        "sources": mock_sources,
-        "tokens_used": 150  # Mock token count
-    }
+    else:
+        # Default behavior: Try SQL RAG (V2) first, fallback to Vector RAG (V1) if it fails
+        
+        # Try SQL RAG first (V2 - preferred system)
+        try:
+            if SQL_RAG_AVAILABLE:
+                result = answer_question(query.query)
+                
+                return {
+                    "answer": result["answer"],
+                    "sources": result.get("sources", []),
+                    "tokens_used": None,
+                    "system_used": "sql"  # Track which system was used
+                }
+        except Exception as e:
+            print(f"SQL RAG failed, falling back to Vector RAG: {e}")
+        
+        # Fallback to Vector RAG (V1) if SQL RAG failed
+        try:
+            if VECTOR_RAG_AVAILABLE:
+                print("Falling back to Vector RAG system...")
+                result = rag_answer(query.query)
+                
+                return {
+                    "answer": f"{result['answer']}\n\n*Note: Answered using backup system (V1) due to primary system unavailability.*",
+                    "sources": result.get("sources", []),
+                    "tokens_used": None,
+                    "system_used": "vector_fallback"  # Track that this was a fallback
+                }
+        except Exception as e:
+            print(f"Both RAG systems failed: {e}")
+        
+        # If both systems failed
+        return {
+            "answer": "I apologize, but both AI systems are currently unavailable. Please try again later or contact support if the issue persists.",
+            "sources": [],
+            "tokens_used": None,
+            "system_used": "none"
+        }
 
 
 # Optional: Get chat history

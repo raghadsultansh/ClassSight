@@ -114,6 +114,7 @@ class GradesList(BaseModel):
 class AssistantQuery(BaseModel):
     session_id: Optional[UUID] = None
     query: str
+    rag_system: Optional[Literal['vector', 'sql']] = 'vector'  # Which RAG system to use
     kb: Optional[str] = None  # knowledge base scope
     bootcamp_id: Optional[int] = None
     start: Optional[date] = None

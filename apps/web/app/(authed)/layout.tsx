@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { 
-  Eye, 
   LayoutDashboard, 
   MessageSquare, 
   FileText, 
@@ -18,6 +17,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 export default function AuthedLayout({
   children,
@@ -138,29 +138,16 @@ export default function AuthedLayout({
             ? 'bg-black/20 border-white/10' 
             : 'bg-white/20 border-white/30'
         }`}>
-          {/* Logo */}
-          <div className="flex items-center justify-between p-6">
-            <div className="flex items-center space-x-3">
-              <div className={`w-10 h-10 rounded-xl ${
-                isDark 
-                  ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
-                  : 'bg-gradient-to-br from-blue-500 to-purple-600'
-              } flex items-center justify-center`}>
-                <Eye className="w-6 h-6 text-white" />
-              </div>
-              <span className={`text-xl font-bold ${
-                isDark ? 'text-white' : 'text-gray-800'
-              }`}>
-                ClassSight
-              </span>
+            {/* Logo */}
+            <div className="flex flex-col items-center justify-center p-8 relative">
+              <Logo size="lg" variant={isDark ? "light" : "dark"} showText={false} />
+                <button
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10"
+                >
+                <X className="w-11 h-11 text-gray-500" />
+                </button>
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg hover:bg-white/10"
-            >
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
 
           {/* Navigation */}
           <nav className="px-4 space-y-2">

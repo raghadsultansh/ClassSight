@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, User, Mail, Lock, Check, Moon, Sun, UserPlus, ArrowRight } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -194,12 +195,8 @@ export default function RegisterPage() {
           {/* Logo and Header */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
-              <div className={`w-16 h-16 rounded-2xl ${
-                isDark 
-                  ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
-                  : 'bg-gradient-to-br from-blue-500 to-purple-600'
-              } flex items-center justify-center backdrop-blur-xl shadow-lg`}>
-                <Eye className="w-8 h-8 text-white" />
+              <div className="flex items-center justify-center backdrop-blur-xl">
+                <Logo size="lg" showText={false} />
               </div>
             </div>
             <h1 className={`text-3xl font-bold mb-2 ${

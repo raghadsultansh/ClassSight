@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Moon, Sun, Eye, Users, BarChart3, Sparkles } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 export default function HomePage() {
   const router = useRouter();
@@ -72,20 +73,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               {/* Logo */}
-              <div className="flex items-center space-x-2">
-                <div className={`w-8 h-8 rounded-lg ${
-                  isDark 
-                    ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
-                    : 'bg-gradient-to-br from-blue-500 to-purple-600'
-                } flex items-center justify-center`}>
-                  <Eye className="w-5 h-5 text-white" />
-                </div>
-                <span className={`text-xl font-bold ${
-                  isDark ? 'text-white' : 'text-gray-800'
-                }`}>
-                  ClassSight
-                </span>
-              </div>
+              <Logo size="sm" />
 
               {/* Right side buttons */}
               <div className="flex items-center space-x-4">
@@ -146,12 +134,8 @@ export default function HomePage() {
           <div className="text-center max-w-4xl mx-auto">
             {/* Logo and Title */}
             <div className="flex justify-center mb-8">
-              <div className={`w-24 h-24 rounded-3xl ${
-                isDark 
-                  ? 'bg-gradient-to-br from-blue-400 to-purple-500' 
-                  : 'bg-gradient-to-br from-blue-500 to-purple-600'
-              } flex items-center justify-center backdrop-blur-xl shadow-2xl`}>
-                <Eye className="w-12 h-12 text-white" />
+              <div className="flex items-center justify-center backdrop-blur-xl shadow-2xl">
+                <Logo size="lg" showText={false} className="scale-150" />
               </div>
             </div>
 
