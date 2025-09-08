@@ -6,14 +6,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    const response = await fetch(`${FASTAPI_URL}/dashboard/leaderboard`, {
+    // Build query parameters from the body
+    const params = new URLSearchParams()
+    if (body.bootcamp_id) params.append('bootcamp_id', body.bootcamp_id.toString())
+    if (body.start) params.append('start', body.start)
+    if (body.end) params.append('end', body.end)
+    if (body.granularity) params.append('granularity', body.granularity)
+    
+    const url = `${FASTAPI_URL}/dashboard/leaderboard`
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': request.headers.get('x-user-id') || '1',
         'x-user-role': request.headers.get('x-user-role') || 'admin',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body.bootcamp_ids || [])
     })
 
     if (!response.ok) {
@@ -21,7 +30,11 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    // Extract leaderboard data from the full dashboard response
+    return NextResponse.json({ 
+      leaderboard_students: data.leaderboard_students || [], 
+      leaderboard_instructors: data.leaderboard_instructors || [] 
+    })
   } catch (error) {
     console.error('Leaderboard API error:', error)
     return NextResponse.json(

@@ -1,8 +1,23 @@
 "use client"
 
-import { useState } from 'react'
-import { IconFilter, IconChevronDown, IconRefresh, IconClock } from '@tabler/icons-react'
-import { cn } from '@/lib/cn'
+import { useState, useEffect } from 'react'
+import { DateRange } from "react-day-picker"
+import { format, subDays } from "date-fns"
+import {
+  Filter,
+  Clock,
+  RefreshCw,
+  BarChart3,
+  Eye,
+  UserCheck,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { cn } from "@/lib/utils"
 
 export interface FilterState {
   view: 'overview' | 'attention' | 'attendance' | 'students' | 'comparisons' | 'instructors'
@@ -33,227 +48,345 @@ export function DashboardFilters({
   isLoading,
   onRefresh 
 }: DashboardFiltersProps) {
-  // Mock data - will be replaced with real API calls
-  const allBootcamps = [
-    { id: '1', name: 'Web Development Bootcamp', status: 'active', instructorId: 'inst-1' },
-    { id: '2', name: 'Data Science Bootcamp', status: 'active', instructorId: 'inst-2' },
-    { id: '3', name: 'Mobile Development', status: 'active', instructorId: 'inst-1' },
-    { id: '4', name: 'AI/ML Fundamentals', status: 'completed', instructorId: 'inst-3' },
-    { id: '5', name: 'DevOps Essentials', status: 'completed', instructorId: 'inst-2' },
-  ]
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  })
 
-  const allInstructors = [
-    { id: 'inst-1', name: 'Dr. Ahmed Hassan', avgAttendance: 87.5, avgAttention: 74.2 },
-    { id: 'inst-2', name: 'Prof. Sarah Wilson', avgAttendance: 92.1, avgAttention: 78.9 },
-    { id: 'inst-3', name: 'Dr. Mohammed Ali', avgAttendance: 85.3, avgAttention: 71.8 },
-  ]
+  const [allBootcamps, setAllBootcamps] = useState([
+    { label: 'All Bootcamps', value: 'all' }
+  ])
+  
+  const [allInstructors, setAllInstructors] = useState([
+    { label: 'All Instructors', value: 'all' }
+  ])
 
-  const availableBootcamps = userRole === 'admin' 
-    ? allBootcamps 
-    : allBootcamps.filter(b => b.instructorId === 'inst-1') // Current user's bootcamps
+  // Fetch real bootcamps and instructors data
+  useEffect(() => {
+    const fetchFilterData = async () => {
+      try {
+        // Import the API here to avoid circular dependencies
+        const { dashboardAPI } = await import('@/lib/fastapi')
+        
+        // Fetch bootcamps
+        console.log('🔍 Fetching bootcamps with includeCompleted:', filters.includeCompleted)
+        const bootcampsResponse = await dashboardAPI.getBootcamps(filters.includeCompleted).catch((error) => {
+          console.error('❌ Bootcamps fetch error:', error)
+          return []
+        })
+        console.log('📦 Raw bootcamps response:', bootcampsResponse)
+        console.log('📦 Response type:', typeof bootcampsResponse)
+        console.log('📦 Response keys:', bootcampsResponse ? Object.keys(bootcampsResponse) : 'no keys')
+        
+        // Handle different response structures
+        let bootcampsList = []
+        if (bootcampsResponse && typeof bootcampsResponse === 'object' && 'bootcamps' in bootcampsResponse) {
+          // Response with bootcamps property
+          bootcampsList = (bootcampsResponse as any).bootcamps
+          console.log('📋 Found bootcamps property:', bootcampsList.length, 'items')
+        } else if (bootcampsResponse && typeof bootcampsResponse === 'object' && 'items' in bootcampsResponse) {
+          // Paginated response
+          bootcampsList = (bootcampsResponse as any).items
+          console.log('📋 Found paginated bootcamps:', bootcampsList.length, 'items')
+        } else if (Array.isArray(bootcampsResponse)) {
+          // Direct array response
+          bootcampsList = bootcampsResponse
+          console.log('📋 Found direct array bootcamps:', bootcampsList.length, 'items')
+        } else {
+          console.log('❌ Unexpected bootcamps response format')
+          bootcampsList = []
+        }
+        
+        if (bootcampsList.length > 0) {
+          console.log('🏗️ Sample bootcamp:', bootcampsList[0])
+          const bootcampOptions = [
+            { label: 'All Bootcamps', value: 'all' },
+            ...bootcampsList.map((bootcamp: any) => ({
+              label: bootcamp.bootcamp_name || bootcamp.name || bootcamp.title || 'Unnamed Bootcamp',
+              value: bootcamp.bootcamp_id?.toString() || bootcamp.id?.toString() || 'no-id'
+            }))
+          ]
+          console.log('✅ Bootcamp options set:', bootcampOptions)
+          setAllBootcamps(bootcampOptions)
+        } else {
+          console.log('⚠️ No bootcamps found, keeping default')
+        }
 
-  const viewOptions = [
-    { value: 'overview', label: 'Overview', description: 'All charts and insights', roles: ['admin', 'instructor'] },
-    { value: 'attention', label: 'Attention Charts', description: 'Focus on attention metrics', roles: ['admin', 'instructor'] },
-    { value: 'attendance', label: 'Attendance Charts', description: 'Focus on attendance data', roles: ['admin', 'instructor'] },
-    { value: 'students', label: 'Student Charts', description: 'Student performance analytics', roles: ['admin', 'instructor'] },
-    { value: 'comparisons', label: 'Comparison Charts', description: 'Comparative analysis', roles: ['admin', 'instructor'] },
-    { value: 'instructors', label: 'Instructor Analytics', description: 'Best performing instructors', roles: ['admin'] },
-  ].filter(option => option.roles.includes(userRole))
+        // Fetch instructors (admin only)
+        if (userRole === 'admin') {
+          console.log('👨‍🏫 Fetching instructors...')
+          const instructorsResponse = await dashboardAPI.getInstructors().catch((error) => {
+            console.error('❌ Instructors fetch error:', error)
+            return []
+          })
+          console.log('👨‍🏫 Raw instructors response:', instructorsResponse)
+          console.log('👨‍🏫 Response type:', typeof instructorsResponse)
+          
+          // Handle different response structures
+          let instructorsList = []
+          if (instructorsResponse && typeof instructorsResponse === 'object' && 'instructors' in instructorsResponse) {
+            // Response with instructors property
+            instructorsList = (instructorsResponse as any).instructors
+            console.log('📋 Found instructors property:', instructorsList.length, 'items')
+          } else if (instructorsResponse && typeof instructorsResponse === 'object' && 'items' in instructorsResponse) {
+            // Paginated response
+            instructorsList = (instructorsResponse as any).items
+            console.log('📋 Found paginated instructors:', instructorsList.length, 'items')
+          } else if (Array.isArray(instructorsResponse)) {
+            // Direct array response
+            instructorsList = instructorsResponse
+            console.log('📋 Found direct array instructors:', instructorsList.length, 'items')
+          } else {
+            console.log('❌ Unexpected instructors response format')
+            instructorsList = []
+          }
+          
+          if (instructorsList.length > 0) {
+            console.log('👨‍🏫 Sample instructor:', instructorsList[0])
+            const instructorOptions = [
+              { label: 'All Instructors', value: 'all' },
+              ...instructorsList.map((instructor: any) => ({
+                label: instructor.full_name || instructor.name || 'Unnamed Instructor',
+                value: instructor.instructor_id?.toString() || instructor.id?.toString() || 'no-id'
+              }))
+            ]
+            console.log('✅ Instructor options set:', instructorOptions)
+            setAllInstructors(instructorOptions)
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch filter data:', error)
+      }
+    }
 
-  const granularityOptions = [
-    { value: 'half-hourly', label: 'Half-Hourly', description: '30-minute intervals' },
-    { value: 'hourly', label: 'Hourly', description: '1-hour intervals' },
-    { value: 'daily', label: 'Daily', description: 'Daily aggregation' },
-    { value: 'weekly', label: 'Weekly', description: 'Weekly summaries' },
-  ]
+    fetchFilterData()
+  }, [userRole, filters.includeCompleted])
 
-  const updateFilters = (key: keyof FilterState, value: any) => {
-    onFiltersChange({ ...filters, [key]: value })
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range)
+    if (range?.from) {
+      onFiltersChange({
+        ...filters,
+        dateRange: {
+          start: format(range.from, "yyyy-MM-dd"),
+          end: range?.to ? format(range.to, "yyyy-MM-dd") : format(range.from, "yyyy-MM-dd")
+        }
+      })
+    }
   }
 
-  return (
-    <div className="glass rounded-xl p-6 mb-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center">
-          <IconFilter className="w-5 h-5 text-indigo-600 dark:text-indigo-400 mr-2" />
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-            Dashboard Filters
-          </h2>
-        </div>
+  const updateFilter = (key: keyof FilterState, value: any) => {
+    onFiltersChange({
+      ...filters,
+      [key]: value
+    })
+  }
 
-        {/* Refresh Section */}
-        <div className="flex items-center space-x-4">
+  const viewOptions = [
+    { value: 'overview', label: 'Overview', icon: BarChart3 },
+    { value: 'attention', label: 'Attention Analysis', icon: Eye },
+    { value: 'attendance', label: 'Attendance Tracking', icon: UserCheck },
+    { value: 'students', label: 'Student Analytics', icon: Users },
+    { value: 'comparisons', label: 'Comparative Analysis', icon: TrendingUp },
+    ...(userRole === 'admin' ? [{ value: 'instructors', label: 'Instructor Performance', icon: Users }] : []),
+  ]
+
+  const granularityOptions = [
+    { value: 'half-hourly', label: '30 Minutes' },
+    { value: 'hourly', label: 'Hourly' },
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: 'Weekly' },
+  ]
+
+  // Filter bootcamps based on user role
+  const availableBootcamps = userRole === 'admin' ? allBootcamps : allBootcamps.slice(0, 3)
+  const availableInstructors = userRole === 'admin' ? allInstructors : []
+
+    return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-lg mb-6">
+      {/* Clean Header - improved readability */}
+      <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+            <Filter className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+              Dashboard Filters
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Customize your view
+            </p>
+          </div>
+        </div>        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg px-3 py-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-green-700 dark:text-green-400">Live Data</span>
+          </div>
           {lastUpdated && (
-            <div className="flex items-center text-sm text-slate-500 dark:text-slate-400">
-              <IconClock className="w-4 h-4 mr-1" />
-              Updated: {lastUpdated.toLocaleTimeString()}
-            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Updated {format(lastUpdated, "HH:mm")}
+            </span>
           )}
-          <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            className={cn(
-              "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all",
-              "glass border border-white/20 dark:border-slate-700/50",
-              isLoading 
-                ? "opacity-50 cursor-not-allowed" 
-                : "hover:bg-white/10 dark:hover:bg-slate-700/50"
-            )}
-          >
-            <IconRefresh className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} />
-            {isLoading ? 'Updating...' : 'Refresh'}
-          </button>
+          {onRefresh && (
+            <Button
+              onClick={onRefresh}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+            >
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+            </Button>
+          )}
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
-        {/* View Filter */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Data View
+      {/* Filters Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {/* View Selection */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Dashboard View
           </label>
-          <div className="relative">
-            <select
-              value={filters.view}
-              onChange={(e) => updateFilters('view', e.target.value)}
-              className="w-full px-3 py-2 glass rounded-lg border-0 bg-white/50 dark:bg-slate-800/50 text-slate-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {viewOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <IconChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {viewOptions.find(o => o.value === filters.view)?.description}
-          </p>
+          <Select value={filters.view} onValueChange={(value) => updateFilter('view', value)}>
+            <SelectTrigger className="h-10 border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm focus:border-blue-900 dark:focus:border-blue-500 text-slate-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-white/90 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 backdrop-blur-xl">
+              {viewOptions.map(option => {
+                const IconComponent = option.icon
+                return (
+                  <SelectItem 
+                    key={option.value} 
+                    value={option.value}
+                    className="hover:bg-blue-900 hover:text-white focus:bg-blue-900 focus:text-white data-[highlighted]:bg-blue-900 data-[highlighted]:text-white"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <IconComponent className="w-4 h-4" />
+                      <span>{option.label}</span>
+                    </div>
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Bootcamps Filter */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
             Bootcamps
           </label>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
-            {availableBootcamps
-              .filter(bootcamp => filters.includeCompleted || bootcamp.status === 'active')
-              .map((bootcamp) => (
-                <label key={bootcamp.id} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={filters.bootcamps?.includes(bootcamp.id) || false}
-                    onChange={(e) => {
-                      const currentBootcamps = filters.bootcamps || []
-                      const newBootcamps = e.target.checked
-                        ? [...currentBootcamps, bootcamp.id]
-                        : currentBootcamps.filter(id => id !== bootcamp.id)
-                      updateFilters('bootcamps', newBootcamps)
-                    }}
-                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                  />
-                  <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">
-                    {bootcamp.name}
-                  </span>
-                  {bootcamp.status === 'completed' && (
-                    <span className="ml-auto text-xs px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded">
-                      Completed
-                    </span>
-                  )}
-                </label>
-              ))}
-          </div>
-          
-          <label className="flex items-center mt-3 pt-3 border-t border-white/20 dark:border-slate-700/50">
-            <input
-              type="checkbox"
-              checked={filters.includeCompleted}
-              onChange={(e) => updateFilters('includeCompleted', e.target.checked)}
-              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-            />
-            <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">
-              Show completed bootcamps
-            </span>
-          </label>
+          <MultiSelect
+            options={availableBootcamps}
+            selected={filters.bootcamps}
+            onChange={(selected) => updateFilter('bootcamps', selected)}
+            placeholder="Select bootcamps..."
+            className="h-10 border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm text-slate-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:border-blue-900 dark:focus:border-blue-500"
+          />
         </div>
 
-        {/* Instructors Filter (Admin Only) */}
+        {/* Instructors Filter (Admin only) */}
         {userRole === 'admin' && (
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Instructors
             </label>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {allInstructors.map((instructor) => (
-                <label key={instructor.id} className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={filters.instructors?.includes(instructor.id) || false}
-                    onChange={(e) => {
-                      const currentInstructors = filters.instructors || []
-                      const newInstructors = e.target.checked
-                        ? [...currentInstructors, instructor.id]
-                        : currentInstructors.filter(id => id !== instructor.id)
-                      updateFilters('instructors', newInstructors)
-                    }}
-                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                  />
-                  <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">
-                    {instructor.name}
-                  </span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              Filter by instructor performance
-            </div>
+            <MultiSelect
+              options={availableInstructors}
+              selected={filters.instructors}
+              onChange={(selected) => updateFilter('instructors', selected)}
+              placeholder="Select instructors..."
+              className="h-10 border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm text-slate-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:border-blue-900 dark:focus:border-blue-500"
+            />
           </div>
         )}
 
-        {/* Time Granularity Filter */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-            Time Granularity
+        {/* Granularity */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            Time Period
           </label>
-          <div className="relative">
-            <select
-              value={filters.granularity}
-              onChange={(e) => updateFilters('granularity', e.target.value)}
-              className="w-full px-3 py-2 glass rounded-lg border-0 bg-white/50 dark:bg-slate-800/50 text-slate-900 dark:text-white appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {granularityOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+          <Select value={filters.granularity} onValueChange={(value) => updateFilter('granularity', value)}>
+            <SelectTrigger className="h-10 border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm focus:border-blue-900 dark:focus:border-blue-500 text-slate-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-white/90 dark:bg-slate-800/90 border-slate-200 dark:border-slate-700 backdrop-blur-xl">
+              {granularityOptions.map(option => (
+                <SelectItem 
+                  key={option.value} 
+                  value={option.value}
+                  className="hover:bg-blue-900 hover:text-white focus:bg-blue-900 focus:text-white data-[highlighted]:bg-blue-900 data-[highlighted]:text-white"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4" />
+                    <span>{option.label}</span>
+                  </div>
+                </SelectItem>
               ))}
-            </select>
-            <IconChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {granularityOptions.find(o => o.value === filters.granularity)?.description}
-          </p>
+            </SelectContent>
+          </Select>
         </div>
+      </div>
 
-        {/* Quick Actions */}
-        <div className="flex flex-col justify-end">
-          <button
+      {/* Date Range Picker */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+          Date Range
+        </label>
+        <DatePickerWithRange
+          date={dateRange}
+          onDateChange={handleDateRangeChange}
+          className="w-fit [&>button]:bg-white/50 dark:[&>button]:bg-slate-800/50 [&>button]:border-slate-200 dark:[&>button]:border-slate-700 [&>button]:text-slate-900 dark:[&>button]:text-white [&>button]:hover:bg-blue-50 dark:[&>button]:hover:bg-blue-900/20 [&>button]:backdrop-blur-sm"
+        />
+      </div>
+
+      {/* Advanced Options */}
+      <div className="flex items-center justify-between pt-4 border-t border-blue-600/30">
+        <div className="flex items-center space-x-4">
+          <label className="flex items-center space-x-2 text-sm text-blue-200">
+            <input
+              type="checkbox"
+              checked={filters.includeCompleted}
+              onChange={(e) => updateFilter('includeCompleted', e.target.checked)}
+              className="rounded border-blue-500 bg-blue-800/50 text-blue-400 focus:ring-blue-400 focus:ring-offset-0"
+            />
+            <span>Include completed bootcamps</span>
+          </label>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onFiltersChange({
               view: 'overview',
-              bootcamps: availableBootcamps.filter(b => b.status === 'active').map(b => b.id),
-              instructors: userRole === 'admin' ? allInstructors.map(i => i.id) : [],
-              granularity: 'half-hourly',
+              bootcamps: [],
+              granularity: 'daily',
               includeCompleted: false,
               dateRange: {
-                start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                end: new Date().toISOString().split('T')[0]
-              }
+                start: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+                end: format(new Date(), "yyyy-MM-dd")
+              },
+              instructors: []
             })}
-            className="w-full px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="text-blue-200 hover:text-white hover:bg-blue-700/50 border border-blue-600/50"
           >
-            Reset to Defaults
-          </button>
+            Reset
+          </Button>
+          
+          <Button
+            size="sm"
+            onClick={() => onFiltersChange({
+              ...filters,
+              bootcamps: availableBootcamps.map(b => b.value),
+              instructors: userRole === 'admin' ? availableInstructors.map(i => i.value) : [],
+            })}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-500 hover:to-blue-600 border border-blue-500"
+          >
+            Select All
+          </Button>
         </div>
       </div>
     </div>

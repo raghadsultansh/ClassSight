@@ -1,7 +1,7 @@
 "use client"
 
-import { IconTrendingUp, IconTrendingDown, IconInfoCircle } from '@tabler/icons-react'
-import { cn } from '@/lib/cn'
+import { TrendingUp, TrendingDown, Info } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface KPICardProps {
   title: string
@@ -33,17 +33,17 @@ export function KPICard({
     }
   }
 
-  const TrendIcon = trend === 'up' ? IconTrendingUp : trend === 'down' ? IconTrendingDown : null
+  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : null
 
   return (
     <div className={cn(
-      "glass rounded-xl p-6 hover:scale-105 transition-all duration-300 cursor-pointer group",
+      "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm",
       className
     )}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           {icon && (
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
               {icon}
             </div>
           )}
@@ -59,7 +59,7 @@ export function KPICard({
             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-white/10 dark:hover:bg-slate-700/50"
             title={description}
           >
-            <IconInfoCircle className="w-4 h-4 text-slate-400" />
+            <Info className="w-4 h-4 text-slate-400" />
           </button>
         )}
       </div>

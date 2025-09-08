@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import react-day-picker styles for the date picker */
+@import "react-day-picker/style.css";
+
 :root {
   /* Light theme colors */
   --background: 255 255 255;
@@ -86,15 +89,36 @@ body {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgb(248 250 252);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: rgb(30 41 59);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgb(var(--muted-foreground));
+  background: rgb(148 163 184);
+  border-radius: 4px;
+  border: 2px solid rgb(248 250 252);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgb(100 116 139);
+  border: 2px solid rgb(30 41 59);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(100 116 139);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
   border-radius: 3px;
 }
 
@@ -102,13 +126,70 @@ body {
   background: rgb(var(--primary));
 }
 
-/* Smooth transitions */
-* {
-  transition: all 0.2s ease-in-out;
-}
-
+/* Remove automatic transitions that cause issues */
 /* Focus styles */
 :focus-visible {
   outline: 2px solid rgb(var(--ring));
   outline-offset: 2px;
+}
+
+/* Improved chart container */
+.chart-container {
+  position: relative;
+  width: 100%;
+  min-height: 400px;
+  overflow: hidden;
+}
+
+/* Prevent chart overlapping */
+.dashboard-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Recharts container fixes */
+.recharts-wrapper {
+  overflow: hidden !important;
+}
+
+.recharts-surface {
+  overflow: visible !important;
+}
+
+/* Better chart boundaries */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  opacity: 0.5;
+}
+
+/* Prevent text overflow in charts */
+.recharts-text {
+  font-size: 12px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dashboard layout improvements */
+.dashboard-container {
+  container-type: inline-size;
+  overflow-x: hidden;
+}
+
+/* Fix for mobile responsiveness */
+@media (max-width: 768px) {
+  .chart-container {
+    min-height: 350px;
+  }
+  
+  .recharts-text {
+    font-size: 10px !important;
+  }
 }

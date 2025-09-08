@@ -6,14 +6,23 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    const response = await fetch(`${FASTAPI_URL}/dashboard/kpis`, {
-      method: 'POST',
+    // Build query parameters from the body
+    const params = new URLSearchParams()
+    if (body.bootcamp_id) params.append('bootcamp_id', body.bootcamp_id.toString())
+    if (body.start) params.append('start', body.start)
+    if (body.end) params.append('end', body.end)
+    if (body.granularity) params.append('granularity', body.granularity)
+    
+    const queryString = params.toString()
+    const url = `${FASTAPI_URL}/dashboard${queryString ? '?' + queryString : ''}`
+    
+    const response = await fetch(url, {
+      method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': request.headers.get('x-user-id') || '1',
         'x-user-role': request.headers.get('x-user-role') || 'admin',
       },
-      body: JSON.stringify(body),
     })
 
     if (!response.ok) {

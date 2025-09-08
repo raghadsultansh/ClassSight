@@ -6,22 +6,32 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    const response = await fetch(`${FASTAPI_URL}/dashboard/grade-distribution`, {
+    // Use the correct FastAPI endpoint for grade distribution
+    const url = `${FASTAPI_URL}/dashboard/grade-distribution`
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': request.headers.get('x-user-id') || '1',
         'x-user-role': request.headers.get('x-user-role') || 'admin',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body.bootcamp_ids || [])
     })
 
     if (!response.ok) {
-      throw new Error(`FastAPI responded with status ${response.status}`)
+      // Return empty grade distribution if grades endpoint fails
+      return NextResponse.json({ 
+        distribution: [],
+        stats: { avg: 0, min: 0, max: 0, count: 0 }
+      })
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json({ 
+      distribution: data.items || [],
+      stats: data.stats || { avg: 0, min: 0, max: 0, count: 0 }
+    })
   } catch (error) {
     console.error('Grade Distribution API error:', error)
     return NextResponse.json(

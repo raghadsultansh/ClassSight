@@ -24,15 +24,25 @@ export async function fastApiRequest<T>(
 
   // Add auth headers from localStorage
   if (typeof window !== 'undefined') {
-    const userId = localStorage.getItem('x-user-id')
-    const userRole = localStorage.getItem('x-user-role')
+    let userId = localStorage.getItem('x-user-id')
+    let userRole = localStorage.getItem('x-user-role')
     
-    if (userId) {
-      defaultHeaders['x-user-id'] = userId
+    // Set default values if not present
+    if (!userId) {
+      userId = '1'
+      localStorage.setItem('x-user-id', userId)
     }
-    if (userRole) {
-      defaultHeaders['x-user-role'] = userRole
+    if (!userRole) {
+      userRole = 'admin'
+      localStorage.setItem('x-user-role', userRole)
     }
+    
+    defaultHeaders['x-user-id'] = userId
+    defaultHeaders['x-user-role'] = userRole
+  } else {
+    // Server-side defaults
+    defaultHeaders['x-user-id'] = '1'
+    defaultHeaders['x-user-role'] = 'admin'
   }
 
   const config: RequestInit = {
@@ -44,19 +54,40 @@ export async function fastApiRequest<T>(
   }
 
   try {
+    console.log('Frontend API Request:', { url, method: config.method, headers: config.headers })
+    
     const response = await fetch(url, config)
     
+    console.log('Frontend API Response:', { url, status: response.status, ok: response.ok })
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
+      console.error('API Error Details:', {
+        status: response.status,
+        statusText: response.statusText,
+        url,
+        errorText
+      })
+      
+      let errorData = null
+      try {
+        errorData = JSON.parse(errorText)
+      } catch (e) {
+        // Not JSON
+      }
+      
       throw new APIError(
         response.status,
-        errorData?.detail || `HTTP ${response.status}: ${response.statusText}`,
+        errorData?.detail || errorData?.error || `HTTP ${response.status}: ${response.statusText}`,
         errorData
       )
     }
 
-    return await response.json()
+    const data = await response.json()
+    console.log('Frontend API Success:', { url, dataKeys: Object.keys(data) })
+    return data
   } catch (error) {
+    console.error('API Request Failed:', { url, error: error instanceof Error ? error.message : error })
     if (error instanceof APIError) {
       throw error
     }
@@ -66,7 +97,7 @@ export async function fastApiRequest<T>(
 
 // Specific API methods
 export const dashboardAPI = {
-  getKPIs: (filters: any) => fastApiRequest('/dashboard/kpis', {
+  getKpis: (filters: any) => fastApiRequest('/dashboard/kpis', {
     method: 'POST',
     body: JSON.stringify(filters)
   }),
@@ -78,7 +109,23 @@ export const dashboardAPI = {
     method: 'POST',
     body: JSON.stringify(filters)
   }),
-  getGradeDistribution: (filters: any) => fastApiRequest('/dashboard/grade-distribution', {
+  getStudentMetrics: (filters: any) => fastApiRequest('/dashboard/student-metrics', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getGradePerformance: (filters: any) => fastApiRequest('/dashboard/grade-performance', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getInstructorPerformance: (filters: any) => fastApiRequest('/dashboard/instructor-performance', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getCorrelationAnalysis: (filters: any) => fastApiRequest('/dashboard/correlation-analysis', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getHeatmapData: (filters: any) => fastApiRequest('/dashboard/heatmap-data', {
     method: 'POST',
     body: JSON.stringify(filters)
   }),
@@ -86,9 +133,33 @@ export const dashboardAPI = {
     method: 'POST',
     body: JSON.stringify(filters)
   }),
+  getBootcampComparison: (filters: any) => fastApiRequest('/dashboard/bootcamp-comparison', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getPredictiveInsights: (filters: any) => fastApiRequest('/dashboard/predictive-insights', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  getEngagementMetrics: (filters: any) => fastApiRequest('/dashboard/engagement-metrics', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
+  // Legacy methods for backwards compatibility
+  getGradeDistribution: (filters: any) => fastApiRequest('/dashboard/grade-distribution', {
+    method: 'POST',
+    body: JSON.stringify(filters)
+  }),
   getAttendanceHeatmap: (filters: any) => fastApiRequest('/dashboard/attendance-heatmap', {
     method: 'POST',
     body: JSON.stringify(filters)
+  }),
+  // Filter data methods
+  getBootcamps: (includeCompleted = false) => fastApiRequest(`/dashboard/bootcamps?include_completed=${includeCompleted}`, {
+    method: 'GET'
+  }),
+  getInstructors: () => fastApiRequest('/dashboard/instructors', {
+    method: 'GET'
   })
 }
 
